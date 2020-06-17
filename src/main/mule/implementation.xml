@@ -234,7 +234,11 @@ payload]]></ee:set-variable>
 		<ee:transform doc:name="Transform Message" doc:id="bba0d616-d5c2-443c-9361-ce6a4638f81f" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
-output application/java
+output application/dw
+type Currency = String {format: "##.00"}
+type Flight = Object{class:"com.mulesoft.training.Flight"}
+import dasherize from dw::core::Strings
+
 /*var numSeats = 400
 var numSeats = (x = 400) -> x
 var numSeats = (planeType: String) ->       
@@ -242,29 +246,46 @@ var numSeats = (planeType: String) ->
 	150
 	else
 	300 */
-	fun getnumSeats(planeType: String) =
-	if(planeType contains('737'))
-	150
-	else
-	300
-	type Currency = String {format: "##.00"}
-	type Flight = Object{class:"com.mulesoft.training.Flight"}
+	
+
+	
 ---
 using(flights= payload..*return map (object,index) -> {
 		destination: object.destination,
 		price: object.price as Number as Currency,
 	//	totalSeats: getnumSeats(object.planeType as String),
-		planeType: upper(object.planeType as String),
+		totalSeats: lookup("getTotalSeats",{planeType:object.planeType}),
+		planeType: dasherize(replace(object.planeType,/(Boing)/) with "Boeing" as String),
 		departureDate: object.departureDate as Date {format: "yyyy/MM/dd"} 
-			   as String {format: "MMM dd, yyyy"}
-}as Flight
+			   as String {format: "MMM dd, yyyy"},
+	    availableSeats: object.emptySeats as Number
+	    
+}as Object
 
 )
 	   
-flights]]></ee:set-payload>
+flights distinctBy $
+		filter ($.availableSeats !=0)
+		orderBy $.departureDate
+		orderBy	$.price]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
 		<logger level="INFO" doc:name="Logger" doc:id="ba185627-438b-4a0e-86a2-1947eec7b9a2" />
+	</flow>
+	<flow name="getTotalSeats" doc:id="ae71f7a4-2ca4-4d63-b385-7e1c6cdabff4" >
+		<ee:transform doc:name="Transform Message" doc:id="f686e2e6-1052-45f3-9a4b-31163ffa0b8b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+fun getnumSeats(planeType: String) =
+	if(planeType contains('737'))
+	150
+	else
+	300
+---
+getnumSeats(payload.planeType)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
 	</flow>
 
 </mule>
